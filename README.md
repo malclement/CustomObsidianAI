@@ -1,4 +1,4 @@
-# Custom Obsidian AI
+# <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/2023_Obsidian_logo.svg/langfr-120px-2023_Obsidian_logo.svg.png" width="30" alt="Obsidian Logo"> Custom Obsidian AI
 
 Run local AI model and use them to extract content from a web page using the Obsidian Clipper plugin.
 
