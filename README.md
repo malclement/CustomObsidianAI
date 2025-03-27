@@ -18,16 +18,21 @@ obsidian_api/
 │   │   │   ├── api.py        # Main API router
 │   │   │   └── endpoints/    # Endpoint modules
 │   │   │       ├── __init__.py
-│   │   │       └── models.py # Model endpoints
+│   │   │       ├── models.py # Model endpoints
+│   │   │       └── completion.py # OpenAI-compatible endpoints
 │   ├── core/                 # Core application code
 │   │   ├── __init__.py
 │   │   └── config.py         # Application settings
 │   ├── services/             # Business logic services
 │   │   ├── __init__.py
-│   │   └── model_service.py  # Model loading service
+│   │   ├── model_service.py  # Model loading service
+│   │   └── completion_service.py # Text generation service
 │   └── utils/                # Utility functions
 │       ├── __init__.py
 │       └── dependencies.py   # FastAPI dependencies
+├── prompts/                  # Prompt templates
+│   ├── system.txt            # System prompt template
+│   └── user.txt              # User prompt template
 ├── requirements.txt
 └── README.md
 ```
@@ -107,7 +112,7 @@ Once the application is running, you can access the API documentation at:
 
 ## API Endpoints
 
-### Get Model
+### Hugging Face Model Loading
 
 ```
 GET /api/v1/models/{model_name}
@@ -124,7 +129,59 @@ Loads a model from Hugging Face and optionally processes text with it.
 GET /api/v1/models/bert-base-uncased?text=Hello%20world
 ```
 
-### Clear Cache
+### OpenAI-Compatible Chat Completion
+
+```
+POST /api/v1/chat/completions
+```
+
+This endpoint is compatible with the OpenAI Chat Completions API but uses Hugging Face models under the hood.
+
+**Request Body:**
+```json
+{
+  "model": "mistralai/Mistral-7B-Instruct-v0.2",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant..."
+    },
+    {
+      "role": "user",
+      "content": "Your markdown content from the webpage here..."
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 500
+}
+```
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-123abc...",
+  "object": "chat.completion",
+  "created": 1679358384,
+  "model": "mistralai/Mistral-7B-Instruct-v0.2",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The generated response..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 345,
+    "total_tokens": 469
+  }
+}
+```
+
+### Clear Model Cache
 
 ```
 GET /api/v1/models/clear-cache
@@ -137,3 +194,10 @@ Clears the model cache to free up memory.
 - `HUGGINGFACE_TOKEN`: Optional token for accessing private models on Hugging Face
 - `DEBUG`: Set to `False` in production to disable auto-reload
 - `PORT`: Server port (default: 8000)
+
+## Customizing Prompts
+
+The system and user prompts can be customized by editing the files in the `prompts/` directory:
+
+- `system.txt`: Defines the system instructions for the AI
+- `user.txt`: Template for processing user content (uses `{content}` placeholder)
