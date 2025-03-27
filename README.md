@@ -1,46 +1,139 @@
 # <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/2023_Obsidian_logo.svg/langfr-120px-2023_Obsidian_logo.svg.png" width="30" alt="Obsidian Logo"> Custom Obsidian AI
 
-Run local AI model and use them to extract content from a web page using the Obsidian Clipper plugin.
+Run local AI models and use them to extract content from a web page using the Obsidian Clipper plugin.
 
-## ToDo
+## Project Structure
 
-- [ ] Implement FastAPI server.
-- [ ] Pull and Run model from hugging face.
-- [ ] Make adapter to fit Obsidian plugin requirement.
+The project follows a modular structure with separation of concerns:
 
-## Pre-commit
-
-1. Install pre-commit :
-   ```bash
-   pip install pre-commit
-   ```
-2. Run :
-   ```bash
-   pre-commit instal
-   ```
-
-#### Note
-
-You can skip the pre-commit validation using `-n`:
-
-```bash
-git commit -m 'my_message' -n
+```
+obsidian_api/
+├── app/
+│   ├── __init__.py
+│   ├── main.py               # Application entry point
+│   ├── api/                  # API routes
+│   │   ├── __init__.py
+│   │   ├── api_v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── api.py        # Main API router
+│   │   │   └── endpoints/    # Endpoint modules
+│   │   │       ├── __init__.py
+│   │   │       └── models.py # Model endpoints
+│   ├── core/                 # Core application code
+│   │   ├── __init__.py
+│   │   └── config.py         # Application settings
+│   ├── services/             # Business logic services
+│   │   ├── __init__.py
+│   │   └── model_service.py  # Model loading service
+│   └── utils/                # Utility functions
+│       ├── __init__.py
+│       └── dependencies.py   # FastAPI dependencies
+├── requirements.txt
+└── README.md
 ```
 
----
+## Getting Started
 
-## Virtual Environment
+### Prerequisites
 
-1. Instal virtualenv :
+- Python 3.8+
+- pip
+
+### Virtual Environment
+
+1. Install virtualenv:
    ```bash
    pip install virtualenv
    ```
-2. Create a virutal environment :
-   Locate yourself at the root of your project
+
+2. Create a virtual environment:
    ```bash
-    python<version> -m venv env
+   python -m venv env
    ```
-3. Activate :
+
+3. Activate the virtual environment:
+   - On Linux/Mac:
+     ```bash
+     source env/bin/activate
+     ```
+   - On Windows:
+     ```bash
+     .\env\Scripts\activate
+     ```
+
+### Installation
+
+1. Install the dependencies:
    ```bash
-   source env/bin/activate
+   pip install -r requirements.txt
    ```
+
+2. Optional: Create a `.env` file in the root directory for environment variables:
+   ```
+   HUGGINGFACE_TOKEN=your_token_here
+   ```
+
+### Pre-commit Hooks
+
+1. Install pre-commit:
+   ```bash
+   pip install pre-commit
+   ```
+
+2. Set up the pre-commit hooks:
+   ```bash
+   pre-commit install
+   ```
+
+   **Note**: You can skip the pre-commit validation using `-n`:
+   ```bash
+   git commit -m 'my_message' -n
+   ```
+
+### Running the Application
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The application will be available at `http://localhost:8000`.
+
+## API Documentation
+
+Once the application is running, you can access the API documentation at:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## API Endpoints
+
+### Get Model
+
+```
+GET /api/v1/models/{model_name}
+```
+
+Loads a model from Hugging Face and optionally processes text with it.
+
+**Query Parameters:**
+- `text` (optional): Text to process with the model
+- `use_cache` (optional, default: true): Whether to use cached model if available
+
+**Example Request:**
+```
+GET /api/v1/models/bert-base-uncased?text=Hello%20world
+```
+
+### Clear Cache
+
+```
+GET /api/v1/models/clear-cache
+```
+
+Clears the model cache to free up memory.
+
+## Environment Variables
+
+- `HUGGINGFACE_TOKEN`: Optional token for accessing private models on Hugging Face
+- `DEBUG`: Set to `False` in production to disable auto-reload
+- `PORT`: Server port (default: 8000)
