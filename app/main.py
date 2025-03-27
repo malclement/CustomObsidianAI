@@ -8,6 +8,10 @@ def create_application() -> FastAPI:
     """
     Factory function to create and configure the FastAPI application
     """
+    # Initialize settings
+    settings.initialize()
+
+    # Create FastAPI application
     application = FastAPI(
         title=settings.PROJECT_NAME,
         description=settings.PROJECT_DESCRIPTION,
@@ -32,5 +36,5 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app.main:app", host="0.0.0.0", port=settings.PORT, reload=settings.DEBUG
+        "app.main:app", host=settings.HOST, port=settings.PORT, reload=settings.DEBUG
     )

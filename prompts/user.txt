@@ -1,0 +1,3 @@
+Process the following markdown content from a webpage and provide a concise, structured summary that would be useful for an Obsidian note. Extract key concepts, important details, and organize the information logically:
+
+{content}
