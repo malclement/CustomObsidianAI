@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import List
 from typing import Optional
 
 from pydantic_settings import BaseSettings
@@ -19,8 +20,18 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
 
+    # CORS settings
+    ALLOW_ORIGINS: List[str] = ["*"]
+
+    # Rate limiting
+    ENABLE_RATE_LIMITING: bool = False
+    RATE_LIMIT_RPM: int = 60  # Requests per minute
+
     # Model cache configuration
     DEFAULT_USE_CACHE: bool = True
+
+    # Logging configuration
+    LOG_LEVEL: str = "INFO"
 
     # Prompt paths
     PROMPTS_DIR: str = "prompts"
@@ -31,15 +42,21 @@ class Settings(BaseSettings):
     DEFAULT_TEMPERATURE: float = 0.7
     DEFAULT_TOP_P: float = 1.0
     DEFAULT_MAX_TOKENS: int = 1024
+    DEFAULT_STOP_SEQUENCES: List[str] = ["\n\n\n"]
 
     # Environment variables
     HUGGINGFACE_TOKEN: Optional[str] = os.getenv("HUGGINGFACE_TOKEN")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
     def initialize(self):
         """Initialize application settings and create necessary directories"""
         # Create prompts directory if it doesn't exist
         prompts_dir = Path(self.PROMPTS_DIR)
         prompts_dir.mkdir(exist_ok=True)
+
+        # Create logs directory if it doesn't exist
+        logs_dir = Path("logs")
+        logs_dir.mkdir(exist_ok=True)
 
         # Create default prompt files if they don't exist
         system_prompt_path = Path(self.SYSTEM_PROMPT_PATH)

@@ -1,10 +1,20 @@
 accelerate>=0.21.0
+bitsandbytes>=0.41.1  # For 8-bit quantization
+# Core dependencies
 fastapi>=0.103.0
+
+# Utilities
+loguru>=0.7.0
 pydantic>=2.3.0
 pydantic-settings>=2.0.3
 python-dotenv>=1.0.0
+python-json-logger>=2.0.7
+safetensors>=0.3.1
 sentencepiece>=0.1.99
+tenacity>=8.2.3  # For retries
 tiktoken>=0.4.0
 torch>=2.0.0
+
+# ML dependencies
 transformers>=4.33.0
-uvicorn>=0.23.2
+uvicorn[standard]>=0.23.2
