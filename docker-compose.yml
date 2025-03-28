@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: custom-obsidian-ai:latest
+    container_name: obsidian-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./prompts:/app/prompts
+      - model-cache:/app/models
+    environment:
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - PORT=8000
+      - HOST=0.0.0.0
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - ENABLE_RATE_LIMITING=true
+      - RATE_LIMIT_RPM=60
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+
+volumes:
+  model-cache:
+    driver: local
