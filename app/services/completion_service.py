@@ -7,8 +7,10 @@ from typing import Optional
 from typing import Tuple
 
 import torch
+from transformers import AutoModel
 from transformers import AutoModelForCausalLM
 from transformers import AutoTokenizer
+from transformers import pipeline
 from transformers import StoppingCriteria
 from transformers import StoppingCriteriaList
 from transformers import TextIteratorStreamer
@@ -97,8 +99,43 @@ class CompletionService:
         Returns:
         Tuple containing the generated text and token usage statistics
         """
-        # Use special loading for chat models
-        lm_model, tokenizer = await self._load_completion_model(model_name)
+        # Check if model is a text generation model
+        is_causal_lm = self._is_causal_lm_model(model_name)
+
+        if is_causal_lm:
+            # Use special loading for chat/causal LM models
+            return await self._generate_with_causal_lm(
+                model_name=model_name,
+                user_content=user_content,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                stream=stream,
+            )
+        else:
+            # Fallback for encoder models like BERT
+            return await self._generate_with_encoder(
+                model_name=model_name,
+                user_content=user_content,
+                system_prompt=system_prompt,
+            )
+
+    async def _generate_with_causal_lm(
+        self,
+        model_name: str,
+        user_content: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        top_p: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+    ) -> Tuple[str, Dict[str, int]]:
+        """
+        Generate text with a causal language model (GPT, LLaMA, etc)
+        """
+        # Load model and tokenizer
+        lm_model, tokenizer = await self._load_causal_lm_model(model_name)
 
         # Prepare system prompt (use provided or default)
         if system_prompt is None:
@@ -165,11 +202,102 @@ class CompletionService:
 
         return generated_text.strip(), usage
 
-    async def _load_completion_model(
+    async def _generate_with_encoder(
+        self,
+        model_name: str,
+        user_content: str,
+        system_prompt: Optional[str] = None,
+    ) -> Tuple[str, Dict[str, int]]:
+        """
+        Generate a response using an encoder model like BERT
+        For encoder-only models, we'll just summarize the content
+        """
+        # Use the summarization pipeline as a fallback
+        try:
+            # Load the model and tokenizer from the model service
+            model, tokenizer = await self.model_service._load_model_and_tokenizer(
+                model_name, True
+            )
+
+            # For encoder models, we'll create a simple summarization response
+            max_length = min(len(user_content.split()), 500)  # Reasonable default
+
+            # Create a basic response
+            response = (
+                f"Content analysis from model '{model_name}':\n\n"
+                f"The provided content contains approximately {len(user_content.split())} words. "
+                f"This model ({model.config.model_type}) is an encoder model and "
+                f"doesn't generate text directly, but can be used for analysis and embedding."
+            )
+
+            # Estimate token counts
+            prompt_tokens = len(tokenizer.encode(user_content))
+            completion_tokens = len(tokenizer.encode(response))
+
+            usage = {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
+
+            return response, usage
+
+        except Exception as e:
+            # If something goes wrong, return a generic response
+            fallback_response = (
+                f"Unable to process content with model '{model_name}'. "
+                f"This model may not support text generation. Error: {str(e)}"
+            )
+
+            # Estimate token counts for the fallback
+            usage = {
+                "prompt_tokens": len(user_content.split()),
+                "completion_tokens": len(fallback_response.split()),
+                "total_tokens": len(user_content.split())
+                + len(fallback_response.split()),
+            }
+
+            return fallback_response, usage
+
+    def _is_causal_lm_model(self, model_name: str) -> bool:
+        """
+        Check if a model is a causal language model that can generate text
+
+        Args:
+        model_name: The name of the model on Hugging Face Hub
+
+        Returns:
+        True if the model is a causal LM, False otherwise
+        """
+        # These model families are known to be causal language models
+        causal_lm_families = [
+            "gpt",
+            "llama",
+            "mistral",
+            "mixtral",
+            "falcon",
+            "mpt",
+            "opt",
+            "bloom",
+            "phi",
+            "gemma",
+            "claude",
+            "llm",
+            "gptq",
+            "starcoder",
+            "pythia",
+            "vicuna",
+            "stablelm",
+        ]
+
+        # Check if model name contains any of the causal LM identifiers
+        return any(family in model_name.lower() for family in causal_lm_families)
+
+    async def _load_causal_lm_model(
         self, model_name: str
     ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """
-        Load a model and tokenizer specifically configured for text generation
+        Load a causal language model and tokenizer specifically configured for text generation
 
         Args:
         model_name: The name of the model on Hugging Face Hub
