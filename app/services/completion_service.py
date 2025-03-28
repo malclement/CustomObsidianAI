@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 import traceback
 from pathlib import Path
 from typing import Any
@@ -38,9 +39,9 @@ class CompletionService:
         Initialize the CompletionService
 
         Args:
-            model_service: ModelService for loading and caching models
-            system_prompt_path: Path to the system prompt template file
-            user_prompt_path: Path to the user prompt template file
+        model_service: ModelService for loading and caching models
+        system_prompt_path: Path to the system prompt template file
+        user_prompt_path: Path to the user prompt template file
         """
         self.model_service = model_service
         self.completion_cache = {}
@@ -51,9 +52,9 @@ class CompletionService:
 
     def _load_prompt(self, path: str) -> str:
         """
-                Load a prompt template from a file
+        Load a prompt template from a file
 
-                Args:
+        Args:
         path: Path to the prompt template file
 
         Returns:
@@ -407,9 +408,27 @@ class CompletionService:
                 # For small models like TinyLlama, use regular loading
                 pass
 
-            # Add token if available
-            if settings.HUGGINGFACE_TOKEN:
-                model_kwargs["token"] = settings.HUGGINGFACE_TOKEN
+            # Add token if available - using proper token handling
+            token = settings.HUGGINGFACE_TOKEN or os.environ.get(
+                "HUGGINGFACE_TOKEN", None
+            )
+
+            # Handle authentication properly
+            use_auth = False
+
+            # Check if token is provided
+            if token:
+                model_kwargs["token"] = token
+                use_auth = True
+                logger.info(f"Using Hugging Face token for model: {model_name}")
+
+            # Check if model requires authentication
+            if "tinyllama" in model_name.lower():
+                # TinyLlama doesn't require authentication, so remove token if it's causing issues
+                if "token" in model_kwargs:
+                    logger.info(f"Removing token for public model: {model_name}")
+                    del model_kwargs["token"]
+                use_auth = False
 
             # Log what we're doing
             if use_quantization:
@@ -419,10 +438,16 @@ class CompletionService:
             else:
                 logger.info(f"Loading model {model_name} without quantization")
 
-            # Load the model and tokenizer from Hugging Face
+            # Create tokenizer arguments
+            tokenizer_kwargs = {}
+            if use_auth and token:
+                tokenizer_kwargs["token"] = token
+
+            # Try loading with authentication first
             try:
+                logger.debug(f"Loading tokenizer for {model_name}")
                 tokenizer = AutoTokenizer.from_pretrained(
-                    model_name, token=settings.HUGGINGFACE_TOKEN
+                    model_name, **tokenizer_kwargs
                 )
 
                 # Handle special case for TinyLlama which might need padding token
@@ -430,29 +455,55 @@ class CompletionService:
                     if tokenizer.pad_token is None:
                         tokenizer.pad_token = tokenizer.eos_token
 
+                logger.debug(f"Loading model for {model_name}")
                 model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
 
-                # Make sure the model has padding token set properly
-                if (
-                    hasattr(model.config, "pad_token_id")
-                    and model.config.pad_token_id is None
-                ):
-                    if tokenizer.pad_token_id is not None:
-                        model.config.pad_token_id = tokenizer.pad_token_id
-                    else:
-                        model.config.pad_token_id = tokenizer.eos_token_id
-
-                # Cache the model
-                self.completion_cache[model_name] = (model, tokenizer)
-
-                logger.info(f"Successfully loaded model {model_name}")
-                return model, tokenizer
-
             except Exception as e:
-                logger.error(
-                    f"Error loading model {model_name}: {str(e)}\n{traceback.format_exc()}"
-                )
-                raise
+                logger.warning(f"Error loading model with auth: {str(e)}")
+
+                # If unauthorized error and we were using a token, try without token
+                if (
+                    "401" in str(e)
+                    or "unauthorized" in str(e).lower()
+                    or "Invalid credentials" in str(e)
+                ):
+                    logger.info(
+                        f"Authentication failed, trying without token for model: {model_name}"
+                    )
+                    # Remove token from kwargs
+                    if "token" in model_kwargs:
+                        del model_kwargs["token"]
+
+                    # Try loading without token
+                    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+                    # Handle special case for TinyLlama which might need padding token
+                    if "tinyllama" in model_name.lower():
+                        if tokenizer.pad_token is None:
+                            tokenizer.pad_token = tokenizer.eos_token
+
+                    model = AutoModelForCausalLM.from_pretrained(
+                        model_name, **model_kwargs
+                    )
+                else:
+                    # For other errors, re-raise
+                    raise
+
+            # Make sure the model has padding token set properly
+            if (
+                hasattr(model.config, "pad_token_id")
+                and model.config.pad_token_id is None
+            ):
+                if tokenizer.pad_token_id is not None:
+                    model.config.pad_token_id = tokenizer.pad_token_id
+                else:
+                    model.config.pad_token_id = tokenizer.eos_token_id
+
+            # Cache the model
+            self.completion_cache[model_name] = (model, tokenizer)
+
+            logger.info(f"Successfully loaded model {model_name}")
+            return model, tokenizer
 
         except Exception as e:
             logger.error(
